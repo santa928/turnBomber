@@ -2,7 +2,10 @@ import {
   CELL,
   DIRECTIONS,
   ITEM_DROP_RATE,
+  ITEM_GUARANTEE_ORDER,
+  ITEM_GUARANTEED_MINIMUMS,
   ITEM_MAX_ON_BOARD,
+  ITEM,
   PLAYER,
   STATUS
 } from "./constants.js";
@@ -21,7 +24,12 @@ function cloneState(state) {
       [PLAYER.P2]: { ...state.players[PLAYER.P2] }
     },
     bombs: state.bombs.map((bomb) => ({ ...bomb })),
-    items: state.items.map((item) => ({ ...item }))
+    items: state.items.map((item) => ({ ...item })),
+    itemSpawnedCounts: {
+      [ITEM.FIRE_UP]: state.itemSpawnedCounts?.[ITEM.FIRE_UP] ?? 0,
+      [ITEM.BOOTS]: state.itemSpawnedCounts?.[ITEM.BOOTS] ?? 0,
+      [ITEM.KICK]: state.itemSpawnedCounts?.[ITEM.KICK] ?? 0
+    }
   };
 }
 
@@ -68,6 +76,28 @@ function nextSeed(seed) {
 function random(stateRef) {
   stateRef.rng = nextSeed(stateRef.rng >>> 0);
   return stateRef.rng / 0x100000000;
+}
+
+function ensureItemSpawnedCounts(state) {
+  if (!state.itemSpawnedCounts) {
+    state.itemSpawnedCounts = {
+      [ITEM.FIRE_UP]: 0,
+      [ITEM.BOOTS]: 0,
+      [ITEM.KICK]: 0
+    };
+  }
+  return state.itemSpawnedCounts;
+}
+
+function nextGuaranteedItemType(state) {
+  const counts = ensureItemSpawnedCounts(state);
+  for (const itemType of ITEM_GUARANTEE_ORDER) {
+    const minimum = ITEM_GUARANTEED_MINIMUMS[itemType] ?? 0;
+    if ((counts[itemType] ?? 0) < minimum) {
+      return itemType;
+    }
+  }
+  return null;
 }
 
 function inBounds(state, x, y) {
@@ -512,16 +542,19 @@ function resolveDestroyedWallsAndDrops(nextState, destroyedSoftWalls) {
     if (nextState.items.length >= ITEM_MAX_ON_BOARD) {
       continue;
     }
-    if (random(nextState) >= ITEM_DROP_RATE) {
+
+    const guaranteedType = nextGuaranteedItemType(nextState);
+    if (!guaranteedType && random(nextState) >= ITEM_DROP_RATE) {
       continue;
     }
-    const itemType = randomItemFromValue(random(nextState));
+    const itemType = guaranteedType ?? randomItemFromValue(random(nextState));
     nextState.items.push({
       id: `i${nextState.nextItemId}`,
       type: itemType,
       x,
       y
     });
+    ensureItemSpawnedCounts(nextState)[itemType] += 1;
     nextState.nextItemId += 1;
   }
 }

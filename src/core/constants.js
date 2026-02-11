@@ -33,3 +33,14 @@ export const DIRECTIONS = Object.freeze({
 export const DEFAULT_SIZE = 7;
 export const ITEM_DROP_RATE = 0.3;
 export const ITEM_MAX_ON_BOARD = 3;
+export const ITEM_GUARANTEED_MINIMUMS = Object.freeze({
+  [ITEM.FIRE_UP]: 2,
+  [ITEM.BOOTS]: 1,
+  [ITEM.KICK]: 1
+});
+export const ITEM_GUARANTEE_ORDER = Object.freeze([
+  ITEM.FIRE_UP,
+  ITEM.FIRE_UP,
+  ITEM.BOOTS,
+  ITEM.KICK
+]);

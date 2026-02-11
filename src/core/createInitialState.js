@@ -83,6 +83,14 @@ function createPlayer(id, x, y) {
   };
 }
 
+function createItemSpawnedCounts() {
+  return {
+    [ITEM.FIRE_UP]: 0,
+    [ITEM.BOOTS]: 0,
+    [ITEM.KICK]: 0
+  };
+}
+
 export function createInitialState(options = {}) {
   const size = options.size ?? DEFAULT_SIZE;
   const initialSeed = (options.seed ?? 0x1f2e3d4c) >>> 0;
@@ -111,6 +119,7 @@ export function createInitialState(options = {}) {
     },
     bombs: [],
     items: [],
+    itemSpawnedCounts: createItemSpawnedCounts(),
     status: STATUS.ONGOING,
     rng: seededAfterSoft,
     nextBombId: 1,
@@ -134,6 +143,7 @@ export function createFloorState(options = {}) {
     },
     bombs: [],
     items: [],
+    itemSpawnedCounts: createItemSpawnedCounts(),
     status: STATUS.ONGOING,
     rng: (options.seed ?? 1234) >>> 0,
     nextBombId: 1,

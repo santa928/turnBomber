@@ -288,3 +288,36 @@ test("勝敗: 同時死亡は引き分け", () => {
   assert.equal(next.players[PLAYER.P2].alive, false);
   assert.equal(next.status, STATUS.DRAW);
 });
+
+test("アイテム保証: FireUp2 / Boots1 / Kick1 を優先生成する", () => {
+  const state = makeState();
+  state.players[PLAYER.P1].x = 6;
+  state.players[PLAYER.P1].y = 6;
+  state.players[PLAYER.P2].x = 0;
+  state.players[PLAYER.P2].y = 0;
+
+  state.board[2][3] = CELL.SOFT;
+  state.board[3][2] = CELL.SOFT;
+  state.board[3][4] = CELL.SOFT;
+  state.board[4][3] = CELL.SOFT;
+  state.bombs = [{ id: "b1", owner: PLAYER.P1, x: 3, y: 3, timer: 1, range: 1 }];
+
+  const turn1 = reduce(state, {}, {});
+  assert.deepEqual(turn1.itemSpawnedCounts, {
+    FireUp: 2,
+    Boots: 1,
+    Kick: 0
+  });
+  assert.equal(turn1.items.length, 3);
+
+  turn1.items = [];
+  turn1.board[3][1] = CELL.SOFT;
+  turn1.bombs = [{ id: "b2", owner: PLAYER.P2, x: 2, y: 3, timer: 1, range: 1 }];
+
+  const turn2 = reduce(turn1, {}, {});
+  assert.deepEqual(turn2.itemSpawnedCounts, {
+    FireUp: 2,
+    Boots: 1,
+    Kick: 1
+  });
+});

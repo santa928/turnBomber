@@ -29,6 +29,13 @@ const overlapStyle = new TextStyle({
   fontSize: 11
 });
 
+const itemLabelStyle = new TextStyle({
+  fontFamily: "Murecho, sans-serif",
+  fontWeight: "900",
+  fill: 0xffffff,
+  fontSize: 15
+});
+
 const BLAST_DIRECTIONS = Object.freeze([
   { x: 0, y: -1 },
   { x: 0, y: 1 },
@@ -44,6 +51,16 @@ function itemColor(itemType) {
     return 0x3c8ddb;
   }
   return 0x3d9b51;
+}
+
+function itemLabel(itemType) {
+  if (itemType === ITEM.FIRE_UP) {
+    return "F";
+  }
+  if (itemType === ITEM.BOOTS) {
+    return "B";
+  }
+  return "K";
 }
 
 function cellColors(cell) {
@@ -277,15 +294,18 @@ export async function createPixiBoard(rootElement, onCellTap) {
     for (const item of state.items) {
       const c = center(item.x, item.y);
       const g = new Graphics();
-      const size = 10;
-      g.moveTo(c.x, c.y - size);
-      g.lineTo(c.x + size, c.y);
-      g.lineTo(c.x, c.y + size);
-      g.lineTo(c.x - size, c.y);
-      g.closePath();
+      g.roundRect(c.x - 14, c.y - 14, 28, 28, 8);
       g.fill(itemColor(item.type));
       g.stroke({ color: 0xffffff, width: 2 });
       itemLayer.addChild(g);
+
+      const label = new Text({
+        text: itemLabel(item.type),
+        style: itemLabelStyle
+      });
+      label.anchor.set(0.5);
+      label.position.set(c.x, c.y + 0.5);
+      itemLayer.addChild(label);
     }
 
     const playerPositions = new Set(

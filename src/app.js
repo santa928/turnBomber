@@ -64,9 +64,18 @@ function projectFromCommand(state, playerId, command) {
   const steps = [];
   const actions = buildActionSequence(normalizedCommand);
   let plannedBomb = null;
+  const projectedBombs = state.bombs.map((bomb) => ({
+    id: bomb.id,
+    x: bomb.x,
+    y: bomb.y
+  }));
 
   const hasProjectedBombAt = (tx, ty) =>
-    hasBombAt(state, tx, ty) || Boolean(plannedBomb && plannedBomb.x === tx && plannedBomb.y === ty);
+    projectedBombs.some((bomb) => bomb.x === tx && bomb.y === ty) ||
+    Boolean(plannedBomb && plannedBomb.x === tx && plannedBomb.y === ty);
+
+  const findProjectedBombIndexAt = (tx, ty) =>
+    projectedBombs.findIndex((bomb) => bomb.x === tx && bomb.y === ty);
 
   for (const action of actions) {
     if (action.type === "move") {
@@ -94,10 +103,28 @@ function projectFromCommand(state, playerId, command) {
       if (isBlockedCell(state.board[ny][nx])) {
         continue;
       }
-      if (hasProjectedBombAt(nx, ny)) {
-        continue;
-      }
-      if (enemy.alive && enemy.x === nx && enemy.y === ny) {
+      const bombIndex = findProjectedBombIndexAt(nx, ny);
+      if (bombIndex >= 0) {
+        if (!player.kick) {
+          continue;
+        }
+        const pushX = nx + v.x;
+        const pushY = ny + v.y;
+        if (!inBounds(state, pushX, pushY)) {
+          continue;
+        }
+        if (isBlockedCell(state.board[pushY][pushX])) {
+          continue;
+        }
+        if (hasProjectedBombAt(pushX, pushY)) {
+          continue;
+        }
+        if (enemy.alive && enemy.x === pushX && enemy.y === pushY) {
+          continue;
+        }
+        projectedBombs[bombIndex].x = pushX;
+        projectedBombs[bombIndex].y = pushY;
+      } else if (enemy.alive && enemy.x === nx && enemy.y === ny) {
         continue;
       }
       x = nx;
@@ -140,7 +167,8 @@ function projectFromCommand(state, playerId, command) {
     bonusMovesRemaining: bonusMoves,
     canMoveMore,
     canPlaceBomb,
-    placeBombPlanned
+    placeBombPlanned,
+    projectedBombs
   };
 }
 
@@ -161,17 +189,39 @@ function candidateMoves(state, playerId, projection) {
     if (isBlockedCell(state.board[ny][nx])) {
       continue;
     }
-    const hasProjectedBomb =
-      hasBombAt(state, nx, ny) ||
-      Boolean(
-        projection.plannedBomb &&
-          projection.plannedBomb.x === nx &&
-          projection.plannedBomb.y === ny
+    const projectedBombs = projection.projectedBombs ?? state.bombs;
+    const bombAtTarget = projectedBombs.find((bomb) => bomb.x === nx && bomb.y === ny);
+    if (bombAtTarget) {
+      const player = state.players[playerId];
+      if (!player.kick) {
+        continue;
+      }
+      const pushX = nx + vector.x;
+      const pushY = ny + vector.y;
+      if (!inBounds(state, pushX, pushY)) {
+        continue;
+      }
+      if (isBlockedCell(state.board[pushY][pushX])) {
+        continue;
+      }
+      const pushBlockedByBomb = projectedBombs.some(
+        (bomb) => bomb.x === pushX && bomb.y === pushY
       );
-    if (hasProjectedBomb) {
-      continue;
-    }
-    if (enemy.alive && enemy.x === nx && enemy.y === ny) {
+      if (pushBlockedByBomb) {
+        continue;
+      }
+      const pushBlockedByPlannedBomb = Boolean(
+        projection.plannedBomb &&
+          projection.plannedBomb.x === pushX &&
+          projection.plannedBomb.y === pushY
+      );
+      if (pushBlockedByPlannedBomb) {
+        continue;
+      }
+      if (enemy.alive && enemy.x === pushX && enemy.y === pushY) {
+        continue;
+      }
+    } else if (enemy.alive && enemy.x === nx && enemy.y === ny) {
       continue;
     }
     result.push({ direction: name, x: nx, y: ny });
