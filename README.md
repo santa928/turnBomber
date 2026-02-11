@@ -16,8 +16,8 @@ import { createInitialState, reduce } from "./src/core/index.js";
 let state = createInitialState();
 state = reduce(
   state,
-  { moves: ["right", "down"], placeBomb: true },
-  { moves: ["left"], placeBomb: false }
+  { moves: ["right", "down"], placeBombStep: 1 },
+  { moves: ["left"] }
 );
 ```
 
@@ -26,7 +26,8 @@ state = reduce(
 ```js
 {
   moves: ["up" | "down" | "left" | "right", ...],
-  placeBomb: boolean
+  placeBombStep?: number // 何回移動した後に設置するか
+  placeBomb?: boolean // 互換用: true の場合は最終移動後に設置
 }
 ```
 
@@ -49,3 +50,25 @@ state = reduce(
 ```bash
 npm test
 ```
+
+## ブラウザUI（PixiJS）
+
+`index.html` から、スマホ向けホットシートUIを利用できます。
+
+- 盤面: PixiJS描画
+- 入力順: `P1入力 → 渡し画面 → P2入力 → 同時解決演出 → 次ターン`
+- 下部UI: AP / ボム / 確定 / 1手戻す / クリア
+
+ローカル環境を汚さないため、静的配信は Docker で実行してください。
+
+```bash
+docker run --rm -p 8080:8080 -v "$PWD:/app" -w /app python:3.12-alpine python -m http.server 8080
+```
+
+ブラウザで `http://localhost:8080` を開きます。
+
+## 仕様細部の補足
+
+実装上の曖昧点の扱いは以下に明記しています。
+
+- `docs/仕様補足.md`

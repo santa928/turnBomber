@@ -1,0 +1,438 @@
+@import url("https://fonts.googleapis.com/css2?family=Murecho:wght@400;500;700;900&family=Zen+Kurenaido&display=swap");
+
+:root {
+  --bg-0: #f3efe2;
+  --bg-1: #e8dcc4;
+  --bg-2: #f8f5ee;
+  --ink: #222018;
+  --muted: #685f4e;
+  --line: #c7b997;
+  --accent: #d55e1d;
+  --accent-2: #0f8b8d;
+  --p1: #a4303f;
+  --p2: #0f5e9c;
+  --good: #2e8b57;
+  --bad: #b33737;
+  --shadow: 0 14px 40px rgb(48 37 13 / 18%);
+  --bottom-bar-height: 78px;
+  --board-max-size: calc(
+    100dvh - var(--bottom-bar-height) - env(safe-area-inset-bottom) - 270px
+  );
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background:
+    radial-gradient(circle at 6% 10%, #fff4d4 0, transparent 40%),
+    radial-gradient(circle at 94% 0%, #e4f4f4 0, transparent 42%),
+    linear-gradient(160deg, var(--bg-0), var(--bg-1));
+  color: var(--ink);
+  font-family: "Murecho", sans-serif;
+}
+
+body {
+  position: relative;
+  height: 100dvh;
+  overflow: hidden;
+  padding: 10px 10px calc(var(--bottom-bar-height) + env(safe-area-inset-bottom) + 8px);
+}
+
+.noise-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(rgb(0 0 0 / 7%) 0.5px, transparent 0.5px),
+    radial-gradient(rgb(255 255 255 / 8%) 0.5px, transparent 0.5px);
+  background-size: 3px 3px, 2px 2px;
+  opacity: 0.28;
+}
+
+.app-shell {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  width: 100%;
+  max-width: 980px;
+  margin: 0 auto;
+  height: 100%;
+  overflow: hidden;
+}
+
+.board-pane,
+.side-pane {
+  display: grid;
+  gap: 8px;
+}
+
+.board-pane {
+  min-height: 0;
+  width: 100%;
+  align-content: start;
+}
+
+.header-card,
+.stat-card {
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: linear-gradient(130deg, rgb(255 255 255 / 82%), rgb(255 255 255 / 66%));
+  box-shadow: var(--shadow);
+  padding: 10px 12px;
+  backdrop-filter: blur(4px);
+}
+
+.eyebrow {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 4px 0 2px;
+  font-family: "Zen Kurenaido", cursive;
+  font-size: 24px;
+  line-height: 1.04;
+}
+
+.phase-text {
+  margin: 0;
+  color: var(--accent-2);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.board-frame {
+  border: 1px solid #a69774;
+  border-radius: 16px;
+  background:
+    linear-gradient(145deg, rgb(242 234 212 / 76%), rgb(232 223 201 / 76%)),
+    repeating-linear-gradient(
+      -45deg,
+      rgb(84 65 29 / 4%) 0,
+      rgb(84 65 29 / 4%) 8px,
+      transparent 8px,
+      transparent 16px
+    );
+  box-shadow: var(--shadow);
+  padding: 8px;
+  width: min(100%, var(--board-max-size));
+  max-width: 100%;
+  margin-inline: auto;
+  overflow: hidden;
+}
+
+.board-frame canvas {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  display: block;
+  border-radius: 12px;
+}
+
+.side-pane {
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(136px, 72%);
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 2px;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+
+.side-pane .stat-card {
+  min-height: 86px;
+}
+
+.stat-card h2 {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.stat-card .value {
+  margin: 4px 0 0;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.stat-card .sub {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.3;
+  color: #35301f;
+  white-space: pre-line;
+}
+
+#movesText,
+#commandBomb {
+  display: none;
+}
+
+.side-pane .stat-card .sub {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bottom-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  display: grid;
+  grid-template-columns: auto repeat(4, 1fr);
+  gap: 6px;
+  padding: 8px 8px max(8px, env(safe-area-inset-bottom));
+  background: linear-gradient(180deg, rgb(243 239 226 / 70%), rgb(243 239 226 / 95%));
+  border-top: 1px solid #bcab86;
+  backdrop-filter: blur(8px);
+  min-height: var(--bottom-bar-height);
+}
+
+.ap-chip {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  border: 1px solid #9e8f6f;
+  border-radius: 10px;
+  background: #fef9ec;
+  min-width: 72px;
+  padding: 2px 7px;
+}
+
+.ap-chip .label {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.ap-chip .value {
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.action {
+  border: 1px solid transparent;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  min-height: 40px;
+  cursor: pointer;
+  transition: transform 120ms ease, filter 120ms ease, background-color 120ms ease;
+}
+
+.action:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+.action.primary {
+  background: linear-gradient(135deg, #d96e2f, #b84c13);
+  color: #fff7eb;
+}
+
+.action.secondary {
+  background: linear-gradient(140deg, #1ea4a8, #0e7d80);
+  color: #effdff;
+}
+
+.action.ghost {
+  border-color: #a1906d;
+  background: #f2ead6;
+  color: #3d3726;
+}
+
+.action:disabled {
+  cursor: default;
+  filter: grayscale(0.3) opacity(0.55);
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  background: rgb(17 15 9 / 52%);
+  padding: 16px;
+}
+
+.overlay.hidden {
+  display: none;
+}
+
+.overlay-card {
+  width: min(420px, 100%);
+  background: linear-gradient(160deg, #fffbf0, #efe4c6);
+  border: 1px solid #aa9771;
+  border-radius: 18px;
+  padding: 16px;
+  box-shadow: 0 20px 60px rgb(0 0 0 / 26%);
+}
+
+.overlay-card h2 {
+  margin: 0;
+  font-size: 24px;
+  font-family: "Zen Kurenaido", cursive;
+}
+
+.overlay-card p {
+  margin: 8px 0 14px;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+body.resolving .board-frame {
+  animation: resolvePulse 0.7s ease-in-out infinite alternate;
+}
+
+@keyframes resolvePulse {
+  from {
+    filter: saturate(1) brightness(1);
+    transform: scale(1);
+  }
+  to {
+    filter: saturate(1.08) brightness(1.04);
+    transform: scale(1.005);
+  }
+}
+
+@media (min-width: 960px) {
+  :root {
+    --bottom-bar-height: 86px;
+    --board-max-size: none;
+  }
+
+  body {
+    overflow: auto;
+    height: auto;
+    padding: 24px 24px 110px;
+  }
+
+  .app-shell {
+    height: auto;
+    overflow: visible;
+    gap: 12px;
+    grid-template-columns: minmax(0, 1fr) 280px;
+    align-items: start;
+  }
+
+  .header-card,
+  .stat-card {
+    border-radius: 16px;
+    padding: 14px 16px;
+  }
+
+  h1 {
+    margin: 8px 0 2px;
+    font-size: 37px;
+  }
+
+  .phase-text {
+    font-size: 14px;
+  }
+
+  .board-frame {
+    width: auto;
+    max-width: none;
+    margin-inline: 0;
+    border-radius: 20px;
+    padding: 10px;
+  }
+
+  .board-frame canvas {
+    height: auto;
+  }
+
+  .side-pane {
+    display: grid;
+    grid-auto-flow: row;
+    grid-auto-columns: auto;
+    overflow: visible;
+    gap: 12px;
+    padding-bottom: 0;
+  }
+
+  .side-pane .stat-card {
+    min-height: 0;
+  }
+
+  .stat-card h2 {
+    font-size: 12px;
+  }
+
+  .stat-card .value {
+    margin: 6px 0 0;
+    font-size: 24px;
+  }
+
+  .stat-card .sub {
+    margin: 6px 0 0;
+    font-size: 14px;
+    line-height: 1.4;
+    white-space: pre-line;
+    overflow: visible;
+    text-overflow: clip;
+  }
+
+  #movesText,
+  #commandBomb {
+    display: block;
+  }
+
+  .bottom-bar {
+    gap: 8px;
+    padding: 10px 12px max(10px, env(safe-area-inset-bottom));
+  }
+
+  .action {
+    font-size: 14px;
+    min-height: 44px;
+  }
+
+  .side-pane {
+    position: sticky;
+    top: 18px;
+  }
+}
+
+@media (max-height: 700px) {
+  :root {
+    --bottom-bar-height: 72px;
+    --board-max-size: calc(
+      100dvh - var(--bottom-bar-height) - env(safe-area-inset-bottom) - 292px
+    );
+  }
+
+  .header-card,
+  .stat-card {
+    padding: 8px 10px;
+  }
+
+  h1 {
+    font-size: 21px;
+  }
+
+  .board-frame {
+    width: min(100%, var(--board-max-size));
+    padding: 6px;
+  }
+
+  .action {
+    min-height: 36px;
+    font-size: 12px;
+  }
+}

@@ -26,12 +26,39 @@ function cloneState(state) {
 }
 
 function normalizeCommands(command) {
+  const moves = Array.isArray(command?.moves)
+    ? command.moves.filter((move) => Object.hasOwn(DIRECTIONS, move))
+    : [];
+  const hasExplicitPlaceStep = Number.isInteger(command?.placeBombStep);
+  let placeBombStep = null;
+  if (hasExplicitPlaceStep) {
+    placeBombStep = command.placeBombStep;
+  } else if (command?.placeBomb) {
+    placeBombStep = moves.length;
+  }
+  if (placeBombStep !== null) {
+    placeBombStep = Math.max(0, Math.min(moves.length, placeBombStep));
+  }
   return {
-    moves: Array.isArray(command?.moves)
-      ? command.moves.filter((move) => Object.hasOwn(DIRECTIONS, move))
-      : [],
-    placeBomb: Boolean(command?.placeBomb)
+    moves,
+    placeBombStep
   };
+}
+
+function buildActionSequence(command) {
+  const actions = [];
+  for (let moveIndex = 0; moveIndex <= command.moves.length; moveIndex += 1) {
+    if (command.placeBombStep === moveIndex) {
+      actions.push({ type: "place" });
+    }
+    if (moveIndex < command.moves.length) {
+      actions.push({
+        type: "move",
+        direction: command.moves[moveIndex]
+      });
+    }
+  }
+  return actions;
 }
 
 function nextSeed(seed) {
@@ -149,7 +176,7 @@ function isTerrainBlocked(cell) {
   return cell === CELL.SOLID || cell === CELL.SOFT || cell === CELL.VOID;
 }
 
-function resolveMovementStep(nextState, resources, commandMap, stepIndex) {
+function resolveMovementStep(nextState, resources, actionMap) {
   const p1 = nextState.players[PLAYER.P1];
   const p2 = nextState.players[PLAYER.P2];
   const sources = {
@@ -163,10 +190,11 @@ function resolveMovementStep(nextState, resources, commandMap, stepIndex) {
     if (!player.alive) {
       continue;
     }
-    const direction = commandMap[playerId].moves[stepIndex];
-    if (!direction) {
+    const action = actionMap[playerId];
+    if (!action || action.type !== "move") {
       continue;
     }
+    const direction = action.direction;
     const resource = resources[playerId];
     if (!consumeMoveCost(resource)) {
       continue;
@@ -318,21 +346,12 @@ function resolveMovementStep(nextState, resources, commandMap, stepIndex) {
   collectItemIfNeeded(nextState, nextState.players[PLAYER.P2]);
 }
 
-function resolveMovementPhase(nextState, resources, commandMap) {
-  const maxSteps = Math.max(
-    commandMap[PLAYER.P1].moves.length,
-    commandMap[PLAYER.P2].moves.length
-  );
-  for (let step = 0; step < maxSteps; step += 1) {
-    resolveMovementStep(nextState, resources, commandMap, step);
-  }
-}
-
-function resolvePlacementPhase(nextState, resources, commandMap) {
+function resolvePlacementStep(nextState, resources, actionMap) {
   const candidates = [];
   for (const playerId of [PLAYER.P1, PLAYER.P2]) {
     const player = nextState.players[playerId];
-    if (!player.alive || !commandMap[playerId].placeBomb) {
+    const action = actionMap[playerId];
+    if (!player.alive || !action || action.type !== "place") {
       continue;
     }
     if (resources[playerId].apRemaining < 1) {
@@ -362,6 +381,25 @@ function resolvePlacementPhase(nextState, resources, commandMap) {
     return;
   }
   nextState.bombs.push(...candidates);
+}
+
+function resolveActionPhase(nextState, resources, commandMap) {
+  const actionSequences = {
+    [PLAYER.P1]: buildActionSequence(commandMap[PLAYER.P1]),
+    [PLAYER.P2]: buildActionSequence(commandMap[PLAYER.P2])
+  };
+  const maxSteps = Math.max(
+    actionSequences[PLAYER.P1].length,
+    actionSequences[PLAYER.P2].length
+  );
+  for (let step = 0; step < maxSteps; step += 1) {
+    const actionMap = {
+      [PLAYER.P1]: actionSequences[PLAYER.P1][step] ?? null,
+      [PLAYER.P2]: actionSequences[PLAYER.P2][step] ?? null
+    };
+    resolveMovementStep(nextState, resources, actionMap);
+    resolvePlacementStep(nextState, resources, actionMap);
+  }
 }
 
 function resolveTimerPhase(nextState) {
@@ -558,8 +596,7 @@ export function reduce(state, p1Commands = {}, p2Commands = {}) {
   };
   const resources = initTurnResources(nextState);
 
-  resolveMovementPhase(nextState, resources, commandMap);
-  resolvePlacementPhase(nextState, resources, commandMap);
+  resolveActionPhase(nextState, resources, commandMap);
   resolveTimerPhase(nextState);
   const { blastOwners, destroyedSoftWalls } = resolveExplosionPhase(nextState);
   resolveDamageAndSelfPenalty(nextState, blastOwners);

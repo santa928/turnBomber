@@ -94,6 +94,52 @@ test("設置: 1ターン1回まで、同時同マス設置は不成立", () => {
   assert.equal(next.players[PLAYER.P2].apEnd, 2);
 });
 
+test("設置順序(B): 移動 -> 設置 -> 移動なら中間マスに設置される", () => {
+  const state = makeState();
+  state.players[PLAYER.P1].x = 1;
+  state.players[PLAYER.P1].y = 1;
+  state.players[PLAYER.P2].x = 5;
+  state.players[PLAYER.P2].y = 5;
+
+  const next = reduce(
+    state,
+    { moves: ["right", "right"], placeBombStep: 1 },
+    {}
+  );
+
+  assert.deepEqual(
+    { x: next.players[PLAYER.P1].x, y: next.players[PLAYER.P1].y },
+    { x: 3, y: 1 }
+  );
+  assert.equal(next.bombs.length, 1);
+  assert.deepEqual(
+    { x: next.bombs[0].x, y: next.bombs[0].y },
+    { x: 2, y: 1 }
+  );
+  assert.equal(next.players[PLAYER.P1].apEnd, 0);
+});
+
+test("設置互換: placeBomb=true は最終移動後の位置に設置される", () => {
+  const state = makeState();
+  state.players[PLAYER.P1].x = 1;
+  state.players[PLAYER.P1].y = 1;
+  state.players[PLAYER.P2].x = 5;
+  state.players[PLAYER.P2].y = 5;
+
+  const next = reduce(
+    state,
+    { moves: ["right", "right"], placeBomb: true },
+    {}
+  );
+
+  assert.equal(next.bombs.length, 1);
+  assert.deepEqual(
+    { x: next.bombs[0].x, y: next.bombs[0].y },
+    { x: 3, y: 1 }
+  );
+  assert.equal(next.players[PLAYER.P1].apEnd, 0);
+});
+
 test("ボム: 設置から2ターン後爆発、連鎖が発生する", () => {
   const state = makeState();
   state.players[PLAYER.P1].x = 1;
