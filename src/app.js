@@ -10,6 +10,11 @@ const PHASE = Object.freeze({
   GAME_OVER: "GAME_OVER"
 });
 
+const MATCH_MODE = Object.freeze({
+  HOTSEAT: "HOTSEAT",
+  CPU: "CPU"
+});
+
 const DIRECTION_VECTORS = Object.freeze({
   up: { x: 0, y: -1 },
   down: { x: 0, y: 1 },
@@ -229,6 +234,187 @@ function candidateMoves(state, playerId, projection) {
   return result;
 }
 
+function coordKeyForAi(x, y) {
+  return `${x},${y}`;
+}
+
+function manhattanDistance(a, b) {
+  return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+}
+
+function blastCellsForBomb(state, bomb) {
+  const cells = [{ x: bomb.x, y: bomb.y }];
+  for (const vector of Object.values(DIRECTION_VECTORS)) {
+    for (let distance = 1; distance <= (bomb.range ?? 1); distance += 1) {
+      const x = bomb.x + vector.x * distance;
+      const y = bomb.y + vector.y * distance;
+      if (!inBounds(state, x, y)) {
+        break;
+      }
+      const cell = state.board[y][x];
+      if (cell === CELL.SOLID || cell === CELL.VOID) {
+        break;
+      }
+      cells.push({ x, y });
+      if (cell === CELL.SOFT) {
+        break;
+      }
+    }
+  }
+  return cells;
+}
+
+function dangerCellsForProjection(state, projection) {
+  const dangerCells = new Set();
+  const baseBombs = projection?.projectedBombs ?? state.bombs;
+  const sourceBombById = new Map(state.bombs.map((bomb) => [bomb.id, bomb]));
+
+  for (const bomb of baseBombs) {
+    const sourceBomb = sourceBombById.get(bomb.id);
+    if (!sourceBomb || sourceBomb.timer > 1) {
+      continue;
+    }
+    const projectedBomb = {
+      ...sourceBomb,
+      x: bomb.x,
+      y: bomb.y
+    };
+    for (const cell of blastCellsForBomb(state, projectedBomb)) {
+      dangerCells.add(coordKeyForAi(cell.x, cell.y));
+    }
+  }
+  return dangerCells;
+}
+
+function countAdjacentSoftWalls(state, x, y) {
+  let count = 0;
+  for (const vector of Object.values(DIRECTION_VECTORS)) {
+    const nx = x + vector.x;
+    const ny = y + vector.y;
+    if (!inBounds(state, nx, ny)) {
+      continue;
+    }
+    if (state.board[ny][nx] === CELL.SOFT) {
+      count += 1;
+    }
+  }
+  return count;
+}
+
+function bombCanReachTarget(state, from, to, range) {
+  if (from.x !== to.x && from.y !== to.y) {
+    return false;
+  }
+  const dx = Math.sign(to.x - from.x);
+  const dy = Math.sign(to.y - from.y);
+  const distance = Math.abs(to.x - from.x) + Math.abs(to.y - from.y);
+  if (distance === 0 || distance > range) {
+    return false;
+  }
+  let x = from.x;
+  let y = from.y;
+  for (let step = 0; step < distance; step += 1) {
+    x += dx;
+    y += dy;
+    const cell = state.board[y][x];
+    if (cell === CELL.SOLID || cell === CELL.VOID || cell === CELL.SOFT) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function shouldCpuPlaceBomb(state, playerId, projection) {
+  const enemyId = playerId === PLAYER.P1 ? PLAYER.P2 : PLAYER.P1;
+  const enemy = state.players[enemyId];
+  const player = state.players[playerId];
+  const position = { x: projection.x, y: projection.y };
+  if (!enemy.alive) {
+    return false;
+  }
+
+  if (bombCanReachTarget(state, position, enemy, player.firePower)) {
+    return true;
+  }
+
+  const softWallCount = countAdjacentSoftWalls(state, position.x, position.y);
+  if (softWallCount >= 2) {
+    return true;
+  }
+  return softWallCount >= 1 && manhattanDistance(position, enemy) <= 2;
+}
+
+function buildCpuCommand(state, playerId = PLAYER.P2) {
+  const command = emptyCommand();
+  const enemyId = playerId === PLAYER.P1 ? PLAYER.P2 : PLAYER.P1;
+  const enemy = state.players[enemyId];
+
+  for (let step = 0; step < 8; step += 1) {
+    const projection = projectFromCommand(state, playerId, command);
+    if (!projection.canMoveMore) {
+      break;
+    }
+    const moves = candidateMoves(state, playerId, projection);
+    if (moves.length === 0) {
+      break;
+    }
+
+    const dangerCells = dangerCellsForProjection(state, projection);
+    const safeMoves = moves.filter(
+      (move) => !dangerCells.has(coordKeyForAi(move.x, move.y))
+    );
+    const pool = safeMoves.length > 0 ? safeMoves : moves;
+    const distanceBefore = manhattanDistance(
+      { x: projection.x, y: projection.y },
+      enemy
+    );
+
+    let bestMove = null;
+    let bestScore = Number.NEGATIVE_INFINITY;
+    for (const move of pool) {
+      const nextCommand = cloneCommand(command);
+      nextCommand.moves.push(move.direction);
+      const nextProjection = projectFromCommand(state, playerId, nextCommand);
+      const nextDangerCells = dangerCellsForProjection(state, nextProjection);
+      const nextPosition = { x: nextProjection.x, y: nextProjection.y };
+      const distanceAfter = manhattanDistance(nextPosition, enemy);
+      let score = (distanceBefore - distanceAfter) * 2;
+
+      const dangerKey = coordKeyForAi(nextPosition.x, nextPosition.y);
+      if (nextDangerCells.has(dangerKey)) {
+        score -= 20;
+      }
+      if (state.items.some((item) => item.x === nextPosition.x && item.y === nextPosition.y)) {
+        score += 5;
+      }
+      score += countAdjacentSoftWalls(state, nextPosition.x, nextPosition.y) * 0.6;
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestMove = move;
+      }
+    }
+
+    if (!bestMove) {
+      break;
+    }
+    command.moves.push(bestMove.direction);
+  }
+
+  const finalProjection = projectFromCommand(state, playerId, command);
+  const finalDangerCells = dangerCellsForProjection(state, finalProjection);
+  const finalKey = coordKeyForAi(finalProjection.x, finalProjection.y);
+  if (
+    finalProjection.canPlaceBomb &&
+    !finalDangerCells.has(finalKey) &&
+    shouldCpuPlaceBomb(state, playerId, finalProjection)
+  ) {
+    command.placeBombStep = command.moves.length;
+  }
+
+  return command;
+}
+
 function summarizePlayer(player) {
   const alive = player.alive ? "生存" : "死亡";
   const kick = player.kick ? "Kick:あり" : "Kick:なし";
@@ -243,12 +429,12 @@ function commandText(command) {
   return `移動: ${command.moves.join(" → ")}`;
 }
 
-function winnerText(status) {
+function winnerText(status, matchMode) {
   if (status === STATUS.P1_WIN) {
     return "P1 の勝利";
   }
   if (status === STATUS.P2_WIN) {
-    return "P2 の勝利";
+    return matchMode === MATCH_MODE.CPU ? "CPU の勝利" : "P2 の勝利";
   }
   if (status === STATUS.DRAW) {
     return "引き分け";
@@ -941,6 +1127,9 @@ async function playResolutionAnimation() {
 
 const elements = {
   phaseText: document.getElementById("phaseText"),
+  modeText: document.getElementById("modeText"),
+  modeHotseatBtn: document.getElementById("modeHotseatBtn"),
+  modeCpuBtn: document.getElementById("modeCpuBtn"),
   turnText: document.getElementById("turnText"),
   playerText: document.getElementById("playerText"),
   apText: document.getElementById("apText"),
@@ -962,12 +1151,31 @@ const elements = {
 
 let gameState = createInitialState();
 let phase = PHASE.P1_INPUT;
+let matchMode = MATCH_MODE.HOTSEAT;
 let pendingCommands = {
   [PLAYER.P1]: emptyCommand(),
   [PLAYER.P2]: emptyCommand()
 };
 
 let renderer;
+
+function p2DisplayName() {
+  return matchMode === MATCH_MODE.CPU ? "CPU(P2)" : "P2";
+}
+
+function updateModeControls() {
+  const isHotseat = matchMode === MATCH_MODE.HOTSEAT;
+  const modeLocked = phase === PHASE.RESOLVING;
+  elements.modeHotseatBtn.classList.toggle("is-active", isHotseat);
+  elements.modeCpuBtn.classList.toggle("is-active", !isHotseat);
+  elements.modeHotseatBtn.setAttribute("aria-pressed", String(isHotseat));
+  elements.modeCpuBtn.setAttribute("aria-pressed", String(!isHotseat));
+  elements.modeHotseatBtn.disabled = modeLocked;
+  elements.modeCpuBtn.disabled = modeLocked;
+  elements.modeText.textContent = isHotseat
+    ? "同じ端末で交互に入力"
+    : "P2 は CPU が自動入力";
+}
 
 function activePlayerId() {
   if (phase === PHASE.P1_INPUT) {
@@ -1006,7 +1214,7 @@ function updateSidebar(projection, candidates) {
   const activeId = activePlayerId();
   elements.turnText.textContent = `#${gameState.turn}`;
   elements.p1Text.textContent = summarizePlayer(gameState.players[PLAYER.P1]);
-  elements.p2Text.textContent = summarizePlayer(gameState.players[PLAYER.P2]);
+  elements.p2Text.textContent = `${p2DisplayName()} / ${summarizePlayer(gameState.players[PLAYER.P2])}`;
 
   if (!activeId) {
     elements.playerText.textContent = "-";
@@ -1019,7 +1227,13 @@ function updateSidebar(projection, candidates) {
   }
 
   const command = pendingCommands[activeId];
-  elements.playerText.textContent = activeId;
+  if (matchMode === MATCH_MODE.CPU && activeId === PLAYER.P1) {
+    elements.playerText.textContent = "あなた (P1)";
+  } else if (matchMode === MATCH_MODE.CPU && activeId === PLAYER.P2) {
+    elements.playerText.textContent = "CPU (P2)";
+  } else {
+    elements.playerText.textContent = activeId;
+  }
   const bombSuffix = projection.placeBombPlanned ? "（ボム予約 -1 反映）" : "";
   elements.apText.textContent = `AP開始 ${projection.apStart} / 残り ${projection.apRemainingAfterCommand}${bombSuffix}`;
   elements.movesText.textContent = `追加移動残 ${projection.bonusMovesRemaining} / 候補 ${candidates.length} マス`;
@@ -1041,14 +1255,16 @@ function updateButtons(projection) {
   elements.confirmBtn.disabled = !inputPhase;
   elements.undoBtn.disabled = !inputPhase || (!hasMoves && !hasBomb);
   elements.clearBtn.disabled = !inputPhase || (!hasMoves && !hasBomb);
+  elements.confirmBtn.textContent =
+    matchMode === MATCH_MODE.CPU && phase === PHASE.P1_INPUT ? "CPUと解決" : "確定";
 }
 
 function phaseLabel() {
   if (phase === PHASE.P1_INPUT) {
-    return "P1 が入力中";
+    return matchMode === MATCH_MODE.CPU ? "あなた (P1) が入力中" : "P1 が入力中";
   }
   if (phase === PHASE.P2_INPUT) {
-    return "P2 が入力中";
+    return matchMode === MATCH_MODE.CPU ? "CPU が入力中" : "P2 が入力中";
   }
   if (phase === PHASE.PASS_TO_P2) {
     return "端末を P2 に渡してください";
@@ -1095,6 +1311,7 @@ function refresh() {
   });
 
   elements.phaseText.textContent = phaseLabel();
+  updateModeControls();
   updateSidebar(
     projection ?? {
       apStart: 0,
@@ -1162,11 +1379,12 @@ async function finalizeTurn() {
 
   if (gameState.status === STATUS.ONGOING) {
     phase = PHASE.TURN_RESULT;
+    const p2Label = matchMode === MATCH_MODE.CPU ? "CPU" : "P2";
     setOverlay({
       title: "ターン解決完了",
       body:
         `P1: ${commandText(pendingCommands[PLAYER.P1])}\n` +
-        `P2: ${commandText(pendingCommands[PLAYER.P2])}`,
+        `${p2Label}: ${commandText(pendingCommands[PLAYER.P2])}`,
       actionLabel: "次ターンへ",
       onAction: () => setNextTurnStart()
     });
@@ -1177,7 +1395,7 @@ async function finalizeTurn() {
   phase = PHASE.GAME_OVER;
   setOverlay({
     title: "ゲーム終了",
-    body: winnerText(gameState.status),
+    body: winnerText(gameState.status, matchMode),
     actionLabel: "再戦する",
     onAction: () => restartGame()
   });
@@ -1231,9 +1449,32 @@ elements.clearBtn.addEventListener("click", () => {
   refresh();
 });
 
+elements.modeHotseatBtn.addEventListener("click", () => {
+  if (matchMode === MATCH_MODE.HOTSEAT) {
+    return;
+  }
+  matchMode = MATCH_MODE.HOTSEAT;
+  restartGame();
+});
+
+elements.modeCpuBtn.addEventListener("click", () => {
+  if (matchMode === MATCH_MODE.CPU) {
+    return;
+  }
+  matchMode = MATCH_MODE.CPU;
+  restartGame();
+});
+
 elements.confirmBtn.addEventListener("click", () => {
   if (phase === PHASE.P1_INPUT) {
     pendingCommands[PLAYER.P1] = cloneCommand(pendingCommands[PLAYER.P1]);
+
+    if (matchMode === MATCH_MODE.CPU) {
+      pendingCommands[PLAYER.P2] = buildCpuCommand(gameState, PLAYER.P2);
+      finalizeTurn();
+      return;
+    }
+
     phase = PHASE.PASS_TO_P2;
     setOverlay({
       title: "P2 の番です",

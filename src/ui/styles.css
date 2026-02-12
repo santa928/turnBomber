@@ -175,6 +175,36 @@ h1 {
   white-space: pre-line;
 }
 
+.mode-switch {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.mode-btn {
+  border: 1px solid #aa9a79;
+  background: #f3ebd8;
+  color: #473b24;
+  border-radius: 8px;
+  min-height: 32px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.mode-btn.is-active {
+  border-color: #0f8b8d;
+  background: linear-gradient(135deg, #1ea4a8, #0e7d80);
+  color: #f5ffff;
+}
+
+.mode-btn:disabled {
+  filter: grayscale(0.3) opacity(0.55);
+  cursor: default;
+}
+
 #movesText,
 #commandBomb {
   display: none;
