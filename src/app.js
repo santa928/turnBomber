@@ -129,8 +129,6 @@ function projectFromCommand(state, playerId, command) {
         }
         projectedBombs[bombIndex].x = pushX;
         projectedBombs[bombIndex].y = pushY;
-      } else if (enemy.alive && enemy.x === nx && enemy.y === ny) {
-        continue;
       }
       x = nx;
       y = ny;
@@ -150,7 +148,7 @@ function projectFromCommand(state, playerId, command) {
         x,
         y,
         owner: playerId,
-        timer: 2,
+        timer: 1,
         range: player.firePower
       };
     }
@@ -226,8 +224,6 @@ function candidateMoves(state, playerId, projection) {
       if (enemy.alive && enemy.x === pushX && enemy.y === pushY) {
         continue;
       }
-    } else if (enemy.alive && enemy.x === nx && enemy.y === ny) {
-      continue;
     }
     result.push({ direction: name, x: nx, y: ny });
   }
@@ -344,6 +340,27 @@ function shouldCpuPlaceBomb(state, playerId, projection) {
   return softWallCount >= 1 && manhattanDistance(position, enemy) <= 2;
 }
 
+function backtrackPenalty(state, playerId, projection, nextPosition) {
+  const player = state.players[playerId];
+  const traversed = [{ x: player.x, y: player.y }, ...projection.steps];
+  const previous = traversed[traversed.length - 2] ?? null;
+  let penalty = 0;
+
+  if (
+    previous &&
+    previous.x === nextPosition.x &&
+    previous.y === nextPosition.y
+  ) {
+    penalty += 4;
+  }
+
+  const recentCells = traversed.slice(Math.max(0, traversed.length - 4), traversed.length - 1);
+  if (recentCells.some((cell) => cell.x === nextPosition.x && cell.y === nextPosition.y)) {
+    penalty += 1.2;
+  }
+  return penalty;
+}
+
 function buildCpuCommand(state, playerId = PLAYER.P2) {
   const command = emptyCommand();
   const enemyId = playerId === PLAYER.P1 ? PLAYER.P2 : PLAYER.P1;
@@ -388,6 +405,7 @@ function buildCpuCommand(state, playerId = PLAYER.P2) {
         score += 5;
       }
       score += countAdjacentSoftWalls(state, nextPosition.x, nextPosition.y) * 0.6;
+      score -= backtrackPenalty(state, playerId, projection, nextPosition);
 
       if (score > bestScore) {
         bestScore = score;
@@ -733,12 +751,7 @@ function buildResolutionFrames(initialState, p1Commands, p2Commands) {
     const i2 = intents[PLAYER.P2];
     if (i1?.valid && i2?.valid) {
       const sameTarget = i1.toX === i2.toX && i1.toY === i2.toY;
-      const swap =
-        i1.toX === i2.fromX &&
-        i1.toY === i2.fromY &&
-        i2.toX === i1.fromX &&
-        i2.toY === i1.fromY;
-      if (sameTarget || swap) {
+      if (sameTarget) {
         i1.valid = false;
         i2.valid = false;
         perPlayer[PLAYER.P1] = {
@@ -754,10 +767,18 @@ function buildResolutionFrames(initialState, p1Commands, p2Commands) {
       }
     }
 
+    const p1Stays =
+      !i1?.valid ||
+      (i1.toX === sources[PLAYER.P1].x && i1.toY === sources[PLAYER.P1].y);
+    const p2Stays =
+      !i2?.valid ||
+      (i2.toX === sources[PLAYER.P2].x && i2.toY === sources[PLAYER.P2].y);
+
     if (
       i1?.valid &&
       i1.toX === sources[PLAYER.P2].x &&
-      i1.toY === sources[PLAYER.P2].y
+      i1.toY === sources[PLAYER.P2].y &&
+      p2Stays
     ) {
       i1.valid = false;
       perPlayer[PLAYER.P1] = {
@@ -769,7 +790,8 @@ function buildResolutionFrames(initialState, p1Commands, p2Commands) {
     if (
       i2?.valid &&
       i2.toX === sources[PLAYER.P1].x &&
-      i2.toY === sources[PLAYER.P1].y
+      i2.toY === sources[PLAYER.P1].y &&
+      p1Stays
     ) {
       i2.valid = false;
       perPlayer[PLAYER.P2] = {
@@ -917,8 +939,9 @@ function buildResolutionFrames(initialState, p1Commands, p2Commands) {
         owner: playerId,
         x: player.x,
         y: player.y,
-        timer: 2,
+        timer: 1,
         range: player.firePower,
+        bornTurn: previewState.turn,
         id: `preview-${playerId}-${previewState.turn}-${stepIndex}`
       });
     }
@@ -970,6 +993,9 @@ function buildResolutionFrames(initialState, p1Commands, p2Commands) {
 
   if (previewState.bombs.length > 0) {
     for (const bomb of previewState.bombs) {
+      if (bomb.bornTurn === previewState.turn) {
+        continue;
+      }
       bomb.timer -= 1;
     }
     frames.push({
@@ -1026,7 +1052,7 @@ function buildResolutionFrames(initialState, p1Commands, p2Commands) {
           continue;
         }
         const opponentId = playerId === PLAYER.P1 ? PLAYER.P2 : PLAYER.P1;
-        if (owners.has(opponentId)) {
+        if (owners.has(opponentId) || owners.has(playerId)) {
           player.alive = false;
         }
       }
@@ -1149,7 +1175,12 @@ const elements = {
   overlayAction: document.getElementById("overlayAction")
 };
 
-let gameState = createInitialState();
+function createMatchState() {
+  const seed = Math.floor(Math.random() * 0x100000000) >>> 0;
+  return createInitialState({ seed });
+}
+
+let gameState = createMatchState();
 let phase = PHASE.P1_INPUT;
 let matchMode = MATCH_MODE.HOTSEAT;
 let pendingCommands = {
@@ -1239,7 +1270,7 @@ function updateSidebar(projection, candidates) {
   elements.movesText.textContent = `追加移動残 ${projection.bonusMovesRemaining} / 候補 ${candidates.length} マス`;
   elements.commandMoves.textContent = commandText(command);
   elements.commandBomb.textContent = projection.placeBombPlanned
-    ? `ボム: 設置する（移動${projection.placeBombStep}回後 / 爆発まで2ターン）`
+    ? `ボム: 設置する（移動${projection.placeBombStep}回後 / 爆発まで1ターン）`
     : "ボム: 設置しない";
   elements.apChipText.textContent = String(projection.apRemainingAfterCommand);
 }
@@ -1359,7 +1390,7 @@ function setNextTurnStart() {
 }
 
 function restartGame() {
-  gameState = createInitialState();
+  gameState = createMatchState();
   setNextTurnStart();
 }
 

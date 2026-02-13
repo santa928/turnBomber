@@ -268,28 +268,32 @@ function resolveMovementStep(nextState, resources, actionMap) {
   const i2 = intents[PLAYER.P2];
   if (i1?.valid && i2?.valid) {
     const sameTarget = i1.toX === i2.toX && i1.toY === i2.toY;
-    const swap =
-      i1.toX === i2.fromX &&
-      i1.toY === i2.fromY &&
-      i2.toX === i1.fromX &&
-      i2.toY === i1.fromY;
-    if (sameTarget || swap) {
+    if (sameTarget) {
       i1.valid = false;
       i2.valid = false;
     }
   }
 
+  const p1Stays =
+    !i1?.valid ||
+    (i1.toX === sources[PLAYER.P1].x && i1.toY === sources[PLAYER.P1].y);
+  const p2Stays =
+    !i2?.valid ||
+    (i2.toX === sources[PLAYER.P2].x && i2.toY === sources[PLAYER.P2].y);
+
   if (
     i1?.valid &&
     i1.toX === sources[PLAYER.P2].x &&
-    i1.toY === sources[PLAYER.P2].y
+    i1.toY === sources[PLAYER.P2].y &&
+    p2Stays
   ) {
     i1.valid = false;
   }
   if (
     i2?.valid &&
     i2.toX === sources[PLAYER.P1].x &&
-    i2.toY === sources[PLAYER.P1].y
+    i2.toY === sources[PLAYER.P1].y &&
+    p1Stays
   ) {
     i2.valid = false;
   }
@@ -396,8 +400,9 @@ function resolvePlacementStep(nextState, resources, actionMap) {
       owner: playerId,
       x: player.x,
       y: player.y,
-      timer: 2,
+      timer: 1,
       range: player.firePower,
+      bornTurn: nextState.turn,
       id: `b${nextState.nextBombId}`
     });
     nextState.nextBombId += 1;
@@ -434,6 +439,9 @@ function resolveActionPhase(nextState, resources, commandMap) {
 
 function resolveTimerPhase(nextState) {
   for (const bomb of nextState.bombs) {
+    if (bomb.bornTurn === nextState.turn) {
+      continue;
+    }
     bomb.timer -= 1;
   }
 }
@@ -500,10 +508,6 @@ function resolveExplosionPhase(nextState) {
 }
 
 function resolveDamageAndSelfPenalty(nextState, blastOwners) {
-  const selfHit = {
-    [PLAYER.P1]: false,
-    [PLAYER.P2]: false
-  };
   for (const playerId of [PLAYER.P1, PLAYER.P2]) {
     const player = nextState.players[playerId];
     if (!player.alive) {
@@ -515,19 +519,8 @@ function resolveDamageAndSelfPenalty(nextState, blastOwners) {
       continue;
     }
     const opponentId = playerId === PLAYER.P1 ? PLAYER.P2 : PLAYER.P1;
-    if (owners.has(opponentId)) {
+    if (owners.has(opponentId) || owners.has(playerId)) {
       player.alive = false;
-      continue;
-    }
-    if (owners.has(playerId)) {
-      selfHit[playerId] = true;
-    }
-  }
-
-  for (const playerId of [PLAYER.P1, PLAYER.P2]) {
-    const player = nextState.players[playerId];
-    if (player.alive && selfHit[playerId]) {
-      player.apPenaltyNext = true;
     }
   }
 }

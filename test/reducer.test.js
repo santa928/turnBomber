@@ -34,7 +34,7 @@ test("同時移動: 同マス侵入は両者不成立", () => {
   assert.equal(next.players[PLAYER.P2].apEnd, 2);
 });
 
-test("同時移動: すれ違いは両者不成立", () => {
+test("同時移動: すれ違いは両者成立", () => {
   const state = makeState();
   state.players[PLAYER.P1].x = 2;
   state.players[PLAYER.P1].y = 3;
@@ -49,11 +49,11 @@ test("同時移動: すれ違いは両者不成立", () => {
 
   assert.deepEqual(
     { x: next.players[PLAYER.P1].x, y: next.players[PLAYER.P1].y },
-    { x: 2, y: 3 }
+    { x: 3, y: 3 }
   );
   assert.deepEqual(
     { x: next.players[PLAYER.P2].x, y: next.players[PLAYER.P2].y },
-    { x: 3, y: 3 }
+    { x: 2, y: 3 }
   );
   assert.equal(next.players[PLAYER.P1].apEnd, 2);
   assert.equal(next.players[PLAYER.P2].apEnd, 2);
@@ -140,7 +140,7 @@ test("設置互換: placeBomb=true は最終移動後の位置に設置される
   assert.equal(next.players[PLAYER.P1].apEnd, 0);
 });
 
-test("ボム: 設置から2ターン後爆発、連鎖が発生する", () => {
+test("ボム: タイマー進行で連鎖が発生する", () => {
   const state = makeState();
   state.players[PLAYER.P1].x = 1;
   state.players[PLAYER.P1].y = 1;
@@ -178,7 +178,22 @@ test("爆風: SoftWallで停止して破壊、SolidWallで遮断", () => {
   assert.equal(next.players[PLAYER.P2].alive, true);
 });
 
-test("自爆: 死亡しないが次ターンAP-1", () => {
+test("設置したボム: 次ターンに爆発する", () => {
+  const state = makeState();
+  state.players[PLAYER.P1].x = 3;
+  state.players[PLAYER.P1].y = 3;
+  state.players[PLAYER.P2].x = 5;
+  state.players[PLAYER.P2].y = 5;
+
+  const turn1 = reduce(state, { placeBomb: true }, {});
+  assert.equal(turn1.bombs.length, 1);
+  assert.equal(turn1.bombs[0].timer, 1);
+
+  const turn2 = reduce(turn1, {}, {});
+  assert.equal(turn2.bombs.length, 0);
+});
+
+test("自爆: 即死亡する", () => {
   const state = makeState();
   state.players[PLAYER.P1].x = 3;
   state.players[PLAYER.P1].y = 3;
@@ -187,12 +202,8 @@ test("自爆: 死亡しないが次ターンAP-1", () => {
   state.bombs = [{ id: "b1", owner: PLAYER.P1, x: 3, y: 3, timer: 1, range: 1 }];
 
   const turn1 = reduce(state, {}, {});
-  assert.equal(turn1.players[PLAYER.P1].alive, true);
-  assert.equal(turn1.players[PLAYER.P1].apPenaltyNext, true);
-
-  const turn2 = reduce(turn1, {}, {});
-  assert.equal(turn2.players[PLAYER.P1].apStart, 4);
-  assert.equal(turn2.players[PLAYER.P1].apPenaltyNext, false);
+  assert.equal(turn1.players[PLAYER.P1].alive, false);
+  assert.equal(turn1.status, STATUS.P2_WIN);
 });
 
 test("キック: 1マス押し出し成功", () => {
