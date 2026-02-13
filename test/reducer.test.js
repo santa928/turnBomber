@@ -271,7 +271,7 @@ test("キック: 押し先が塞がると移動不成立(AP消費)", () => {
 
 test("縮小: Void侵入不可、Void化で即死、オブジェクト消滅", () => {
   const state = makeState();
-  state.turn = 15;
+  state.turn = 13;
   state.players[PLAYER.P1].x = 0;
   state.players[PLAYER.P1].y = 0;
   state.players[PLAYER.P2].x = 3;

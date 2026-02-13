@@ -134,10 +134,10 @@ function consumeMoveCost(resource) {
 }
 
 function shrinkLayerForTurn(turn) {
-  if (turn < 15) {
+  if (turn < 13) {
     return 0;
   }
-  return 1 + Math.floor((turn - 15) / 3);
+  return 1 + Math.floor((turn - 13) / 3);
 }
 
 function initTurnResources(nextState) {
