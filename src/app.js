@@ -749,24 +749,6 @@ function buildResolutionFrames(initialState, p1Commands, p2Commands) {
 
     const i1 = intents[PLAYER.P1];
     const i2 = intents[PLAYER.P2];
-    if (i1?.valid && i2?.valid) {
-      const sameTarget = i1.toX === i2.toX && i1.toY === i2.toY;
-      if (sameTarget) {
-        i1.valid = false;
-        i2.valid = false;
-        perPlayer[PLAYER.P1] = {
-          action: "move",
-          direction: i1.direction,
-          result: "失敗(競合)"
-        };
-        perPlayer[PLAYER.P2] = {
-          action: "move",
-          direction: i2.direction,
-          result: "失敗(競合)"
-        };
-      }
-    }
-
     const p1Stays =
       !i1?.valid ||
       (i1.toX === sources[PLAYER.P1].x && i1.toY === sources[PLAYER.P1].y);

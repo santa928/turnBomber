@@ -121,10 +121,6 @@ function hasBombAt(state, x, y) {
   return findBombIndexAt(state, x, y) >= 0;
 }
 
-function hasItemAt(state, x, y) {
-  return state.items.findIndex((item) => item.x === x && item.y === y);
-}
-
 function consumeMoveCost(resource) {
   if (resource.apRemaining > 0) {
     resource.apRemaining -= 1;
@@ -190,16 +186,22 @@ function applyItem(player, itemType) {
   }
 }
 
-function collectItemIfNeeded(nextState, player) {
-  if (!player.alive) {
-    return;
+function collectItemsIfNeeded(nextState) {
+  for (let itemIndex = nextState.items.length - 1; itemIndex >= 0; itemIndex -= 1) {
+    const item = nextState.items[itemIndex];
+    const collectors = [PLAYER.P1, PLAYER.P2]
+      .map((playerId) => nextState.players[playerId])
+      .filter(
+        (player) => player.alive && player.x === item.x && player.y === item.y
+      );
+    if (collectors.length === 0) {
+      continue;
+    }
+    nextState.items.splice(itemIndex, 1);
+    for (const player of collectors) {
+      applyItem(player, item.type);
+    }
   }
-  const itemIndex = hasItemAt(nextState, player.x, player.y);
-  if (itemIndex < 0) {
-    return;
-  }
-  const [item] = nextState.items.splice(itemIndex, 1);
-  applyItem(player, item.type);
 }
 
 function isTerrainBlocked(cell) {
@@ -266,13 +268,6 @@ function resolveMovementStep(nextState, resources, actionMap) {
 
   const i1 = intents[PLAYER.P1];
   const i2 = intents[PLAYER.P2];
-  if (i1?.valid && i2?.valid) {
-    const sameTarget = i1.toX === i2.toX && i1.toY === i2.toY;
-    if (sameTarget) {
-      i1.valid = false;
-      i2.valid = false;
-    }
-  }
 
   const p1Stays =
     !i1?.valid ||
@@ -376,8 +371,7 @@ function resolveMovementStep(nextState, resources, actionMap) {
     player.y = intent.toY;
   }
 
-  collectItemIfNeeded(nextState, nextState.players[PLAYER.P1]);
-  collectItemIfNeeded(nextState, nextState.players[PLAYER.P2]);
+  collectItemsIfNeeded(nextState);
 }
 
 function resolvePlacementStep(nextState, resources, actionMap) {

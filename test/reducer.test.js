@@ -9,7 +9,7 @@ function makeState() {
   return state;
 }
 
-test("同時移動: 同マス侵入は両者不成立", () => {
+test("同時移動: 同マス侵入は両者成立", () => {
   const state = makeState();
   state.players[PLAYER.P1].x = 2;
   state.players[PLAYER.P1].y = 3;
@@ -24,11 +24,11 @@ test("同時移動: 同マス侵入は両者不成立", () => {
 
   assert.deepEqual(
     { x: next.players[PLAYER.P1].x, y: next.players[PLAYER.P1].y },
-    { x: 2, y: 3 }
+    { x: 3, y: 3 }
   );
   assert.deepEqual(
     { x: next.players[PLAYER.P2].x, y: next.players[PLAYER.P2].y },
-    { x: 4, y: 3 }
+    { x: 3, y: 3 }
   );
   assert.equal(next.players[PLAYER.P1].apEnd, 2);
   assert.equal(next.players[PLAYER.P2].apEnd, 2);
@@ -57,6 +57,25 @@ test("同時移動: すれ違いは両者成立", () => {
   );
   assert.equal(next.players[PLAYER.P1].apEnd, 2);
   assert.equal(next.players[PLAYER.P2].apEnd, 2);
+});
+
+test("同時アイテム取得: 同じアイテムを両者が取得できる", () => {
+  const state = makeState();
+  state.players[PLAYER.P1].x = 2;
+  state.players[PLAYER.P1].y = 3;
+  state.players[PLAYER.P2].x = 4;
+  state.players[PLAYER.P2].y = 3;
+  state.items = [{ id: "i1", type: "FireUp", x: 3, y: 3 }];
+
+  const next = reduce(
+    state,
+    { moves: ["right"] },
+    { moves: ["left"] }
+  );
+
+  assert.equal(next.items.length, 0);
+  assert.equal(next.players[PLAYER.P1].firePower, 2);
+  assert.equal(next.players[PLAYER.P2].firePower, 2);
 });
 
 test("移動失敗でもAPは消費される", () => {
