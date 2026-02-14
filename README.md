@@ -43,6 +43,7 @@ docker run --rm -p 8080:8080 -v "$PWD:/app" -w /app python:3.12-alpine python -m
 2. 一度リロードして Service Worker のキャッシュを有効化する
 3. ブラウザの「ホーム画面に追加 / インストール」を実行する
 4. 以後はネットワーク切断時も起動してプレイ可能
+5. アイコンは `icons/` 配下の PNG（192/512/maskable ほか）が利用される
 
 ## 実装済みコアAPI
 

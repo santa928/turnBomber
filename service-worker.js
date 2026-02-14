@@ -1,4 +1,4 @@
-const CACHE_NAME = "turn-bomber-cache-v1";
+const CACHE_NAME = "turn-bomber-cache-v2";
 
 const APP_SHELL_ASSETS = [
   "./",
@@ -12,6 +12,12 @@ const APP_SHELL_ASSETS = [
   "./src/core/reducer.js",
   "./src/ui/pixiBoard.js",
   "./src/ui/styles.css",
+  "./icons/apple-touch-icon.png",
+  "./icons/favicon-16.png",
+  "./icons/favicon-32.png",
+  "./icons/icon-192.png",
+  "./icons/icon-512.png",
+  "./icons/icon-512-maskable.png",
   "./icons/icon-192.svg",
   "./icons/icon-512.svg"
 ];
