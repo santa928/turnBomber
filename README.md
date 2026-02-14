@@ -1,14 +1,56 @@
-# turnBomber
+# Turn Bomber
 
-同時手番ホットシート型ボム対戦ゲームのコアルール実装です。  
-UI/描画から分離した純粋関数で 1 ターン進行できます。
+同時手番ホットシート型の 2D ボム対戦ゲームです。  
+本リポジトリは **コアルール実装 + ブラウザUI + PWA(オフライン対応)** を含みます。
+
+## アプリ説明
+
+- 2人対戦 / CPU対戦を切り替え可能
+- 1ターン内で移動とボム設置を入力し、同時解決
+- PWA インストール後は、初回キャッシュ完了済みならオフラインでもプレイ可能
+
+## 起動方法
+
+### 1) Docker Compose（推奨）
+
+```bash
+cp .env.sample .env
+docker compose up
+```
+
+ブラウザで `http://localhost:8080` を開いてください。  
+(`APP_PORT` を変更した場合はそのポートに読み替えます)
+
+### 2) 簡易起動（Docker単発）
+
+```bash
+docker run --rm -p 8080:8080 -v "$PWD:/app" -w /app python:3.12-alpine python -m http.server 8080
+```
+
+## 操作方法
+
+- 盤面タップ: 移動予約を追加
+- `ボム`: 現在の入力コマンドに設置を追加/解除
+- `確定`:
+  - 2人対戦: P1入力確定後に P2入力へ
+  - CPU対戦: P1入力確定で即解決
+- `1手戻す`: 直前入力を取り消し
+- `クリア`: 現在プレイヤーの入力を全消去
+
+## PWA（オフラインプレイ）
+
+1. オンライン状態でアプリを開く
+2. 一度リロードして Service Worker のキャッシュを有効化する
+3. ブラウザの「ホーム画面に追加 / インストール」を実行する
+4. 以後はネットワーク切断時も起動してプレイ可能
+5. アイコンは `icons/` 配下の PNG（192/512/maskable ほか）が利用される
 
 ## 実装済みコアAPI
 
 - `src/core/index.js`
-  - `createInitialState(options?)`: 7x7 初期盤面生成（Solid格子 + Soft配置）
-  - `createFloorState(options?)`: テスト向け全Floor状態生成
-  - `reduce(state, p1Commands, p2Commands)`: 1ターン進行
+  - `createInitialState(options?)`
+  - `createFloorState(options?)`
+  - `reduce(state, p1Commands, p2Commands)`
 
 ```js
 import { createInitialState, reduce } from "./src/core/index.js";
@@ -21,58 +63,15 @@ state = reduce(
 );
 ```
 
-## コマンド形式
-
-```js
-{
-  moves: ["up" | "down" | "left" | "right", ...],
-  placeBombStep?: number // 何回移動した後に設置するか
-  placeBomb?: boolean // 互換用: true の場合は最終移動後に設置
-}
-```
-
-## 仕様対応範囲
-
-- AP持ち越し/回復
-- 同時移動（同マス競合は成立・すれ違いは成立、失敗時AP消費）
-- 設置（同時設置、設置後1ターンで爆発）
-- 爆発（十字、Soft停止破壊、Solid遮断、連鎖）
-- 自爆（即死亡）
-- Kick（1マス押し、失敗時移動不成立）
-- 同時アイテム取得（同一セルへ同時到達した場合は両者取得）
-- Soft破壊時ドロップ（同時存在上限3、まず FireUp×2 / Boots×1 / Kick×1 を保証し、その後30%抽選）
-- 盤面縮小（turn 13/16/... で外周からVoid化）
-- 勝敗判定（同時死亡は引き分け）
-
-## テスト実行
-
-依存追加なしで Node 標準テストを使用します。
+## テスト
 
 ```bash
 npm test
 ```
 
-## ブラウザUI（PixiJS）
+## ドキュメント
 
-`index.html` から、スマホ向けホットシートUIを利用できます。
-
-- 盤面: PixiJS描画
-- 対戦モード:
-  - `2人対戦`: `P1入力 → 渡し画面 → P2入力 → 同時解決演出 → 次ターン`
-  - `CPU対戦`: `P1入力 → CPU自動入力 → 同時解決演出 → 次ターン`
-- 新規対戦開始ごとに、SoftWall配置はランダムseedで再生成
-- 下部UI: AP / ボム / 確定 / 1手戻す / クリア
-
-ローカル環境を汚さないため、静的配信は Docker で実行してください。
-
-```bash
-docker run --rm -p 8080:8080 -v "$PWD:/app" -w /app python:3.12-alpine python -m http.server 8080
-```
-
-ブラウザで `http://localhost:8080` を開きます。
-
-## 仕様細部の補足
-
-実装上の曖昧点の扱いは以下に明記しています。
-
+- `docs/要件定義書.md`
+- `docs/仕様書.md`
+- `docs/機能一覧.md`
 - `docs/仕様補足.md`

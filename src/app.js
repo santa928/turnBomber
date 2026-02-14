@@ -1511,9 +1511,26 @@ elements.confirmBtn.addEventListener("click", () => {
 });
 
 async function bootstrap() {
+  registerServiceWorker();
   const root = document.getElementById("pixiRoot");
   renderer = await createPixiBoard(root, onTapCell);
   refresh();
+}
+
+function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) {
+    return;
+  }
+  window.addEventListener("load", async () => {
+    try {
+      const registration = await navigator.serviceWorker.register("./service-worker.js");
+      if (registration.waiting) {
+        registration.waiting.postMessage({ type: "SKIP_WAITING" });
+      }
+    } catch (error) {
+      console.warn("Service Worker registration failed", error);
+    }
+  });
 }
 
 bootstrap();
