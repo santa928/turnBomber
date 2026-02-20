@@ -1,5 +1,16 @@
-import { Application, Container, Graphics, Text, TextStyle } from "https://cdn.jsdelivr.net/npm/pixi.js@8.6.6/dist/pixi.mjs";
 import { CELL, ITEM, PLAYER } from "../core/index.js";
+
+const PIXI_CDN_URLS = [
+  "https://cdn.jsdelivr.net/npm/pixi.js@8.6.6/dist/pixi.mjs",
+  "https://unpkg.com/pixi.js@8.6.6/dist/pixi.mjs"
+];
+
+let Application;
+let Container;
+let Graphics;
+let Text;
+let TextStyle;
+let pixiLoadPromise = null;
 
 const BOARD_SIZE = 7;
 const CELL_SIZE = 66;
@@ -8,33 +19,10 @@ const PADDING = 16;
 const BOARD_PIXELS = BOARD_SIZE * CELL_SIZE + (BOARD_SIZE - 1) * GAP;
 const CANVAS_SIZE = BOARD_PIXELS + PADDING * 2;
 
-const stepStyle = new TextStyle({
-  fontFamily: "Murecho, sans-serif",
-  fontWeight: "800",
-  fill: 0xffffff,
-  fontSize: 12
-});
-
-const timerStyle = new TextStyle({
-  fontFamily: "Murecho, sans-serif",
-  fontWeight: "800",
-  fill: 0xfff9ea,
-  fontSize: 14
-});
-
-const overlapStyle = new TextStyle({
-  fontFamily: "Murecho, sans-serif",
-  fontWeight: "900",
-  fill: 0x3a2b19,
-  fontSize: 11
-});
-
-const itemLabelStyle = new TextStyle({
-  fontFamily: "Murecho, sans-serif",
-  fontWeight: "900",
-  fill: 0xffffff,
-  fontSize: 15
-});
+let stepStyle;
+let timerStyle;
+let overlapStyle;
+let itemLabelStyle;
 
 const BLAST_DIRECTIONS = Object.freeze([
   { x: 0, y: -1 },
@@ -125,6 +113,67 @@ function blastColor(owner) {
   return owner === PLAYER.P1 ? 0xd7776c : 0x6e99cf;
 }
 
+async function loadPixi() {
+  if (Application && Container && Graphics && Text && TextStyle) {
+    return true;
+  }
+
+  if (!pixiLoadPromise) {
+    pixiLoadPromise = (async () => {
+      for (const url of PIXI_CDN_URLS) {
+        try {
+          const pixi = await import(url);
+          ({ Application, Container, Graphics, Text, TextStyle } = pixi);
+          return true;
+        } catch (error) {
+          console.warn(`PIXI 読み込み失敗: ${url}`, error);
+        }
+      }
+      return false;
+    })();
+  }
+
+  return pixiLoadPromise;
+}
+
+function ensureTextStyles() {
+  if (stepStyle && timerStyle && overlapStyle && itemLabelStyle) {
+    return;
+  }
+  stepStyle = new TextStyle({
+    fontFamily: "Murecho, sans-serif",
+    fontWeight: "800",
+    fill: 0xffffff,
+    fontSize: 12
+  });
+  timerStyle = new TextStyle({
+    fontFamily: "Murecho, sans-serif",
+    fontWeight: "800",
+    fill: 0xfff9ea,
+    fontSize: 14
+  });
+  overlapStyle = new TextStyle({
+    fontFamily: "Murecho, sans-serif",
+    fontWeight: "900",
+    fill: 0x3a2b19,
+    fontSize: 11
+  });
+  itemLabelStyle = new TextStyle({
+    fontFamily: "Murecho, sans-serif",
+    fontWeight: "900",
+    fill: 0xffffff,
+    fontSize: 15
+  });
+}
+
+function createFallbackBoard(rootElement) {
+  rootElement.innerHTML =
+    '<div style="display:grid;place-items:center;min-height:280px;padding:18px;text-align:center;color:#3d3726;font-weight:700;">盤面ライブラリの読み込みに失敗しました。\n通信を確認して再読み込みしてください。</div>';
+  return {
+    render() {}
+  };
+}
+
 function drawTimerBadge(layer, bomb, options = {}) {
   const { x: px, y: py } = toPixel(bomb.x, bomb.y);
   const chip = new Graphics();
@@ -150,6 +199,12 @@ function drawTimerBadge(layer, bomb, options = {}) {
 }
 
 export async function createPixiBoard(rootElement, onCellTap) {
+  const loaded = await loadPixi();
+  if (!loaded) {
+    return createFallbackBoard(rootElement, onCellTap);
+  }
+  ensureTextStyles();
+
   const app = new Application();
   await app.init({
     width: CANVAS_SIZE,
