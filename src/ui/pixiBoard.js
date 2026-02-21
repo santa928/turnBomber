@@ -1,5 +1,9 @@
 import { CELL, ITEM, PLAYER } from "../core/index.js";
 
+const PIXI_MODULE_URLS = [
+  "https://cdn.jsdelivr.net/npm/pixi.js@8.6.6/dist/pixi.mjs",
+  "https://unpkg.com/pixi.js@8.6.6/dist/pixi.mjs"
+];
 const PIXI_SCRIPT_URLS = [
   "https://cdn.jsdelivr.net/npm/pixi.js@8.6.6/dist/pixi.min.js",
   "https://unpkg.com/pixi.js@8.6.6/dist/pixi.min.js"
@@ -113,8 +117,7 @@ function blastColor(owner) {
   return owner === PLAYER.P1 ? 0xd7776c : 0x6e99cf;
 }
 
-function resolvePixiGlobal() {
-  const pixi = globalThis.PIXI;
+function assignPixiExports(pixi) {
   if (!pixi) {
     return false;
   }
@@ -135,6 +138,10 @@ function resolvePixiGlobal() {
     TextStyle
   } = pixi);
   return true;
+}
+
+function resolvePixiGlobal() {
+  return assignPixiExports(globalThis.PIXI);
 }
 
 function loadScript(url) {
@@ -166,12 +173,25 @@ function loadScript(url) {
 }
 
 async function loadPixi() {
+  if (Application && Container && Graphics && Text && TextStyle) {
+    return true;
+  }
   if (resolvePixiGlobal()) {
     return true;
   }
 
   if (!pixiLoadPromise) {
     pixiLoadPromise = (async () => {
+      for (const url of PIXI_MODULE_URLS) {
+        try {
+          const pixi = await import(url);
+          if (assignPixiExports(pixi)) {
+            return true;
+          }
+        } catch (error) {
+          console.warn(`PIXI 読み込み失敗: ${url}`, error);
+        }
+      }
       for (const url of PIXI_SCRIPT_URLS) {
         try {
           await loadScript(url);
