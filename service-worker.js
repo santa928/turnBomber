@@ -1,4 +1,4 @@
-const CACHE_NAME = "turn-bomber-cache-v2";
+const CACHE_NAME = "turn-bomber-cache-v3";
 
 const APP_SHELL_ASSETS = [
   "./",
@@ -23,7 +23,8 @@ const APP_SHELL_ASSETS = [
 ];
 
 const THIRD_PARTY_ASSETS = [
-  "https://cdn.jsdelivr.net/npm/pixi.js@8.6.6/dist/pixi.mjs"
+  "https://cdn.jsdelivr.net/npm/pixi.js@8.6.6/dist/pixi.min.js",
+  "https://unpkg.com/pixi.js@8.6.6/dist/pixi.min.js"
 ];
 
 async function cacheExternalAssets(cache, urls) {
@@ -39,6 +40,23 @@ async function cacheExternalAssets(cache, urls) {
   );
 }
 
+async function networkFirst(request, cacheKey = request) {
+  const cache = await caches.open(CACHE_NAME);
+  try {
+    const networkResponse = await fetch(request);
+    if (networkResponse.ok || networkResponse.type === "opaque") {
+      cache.put(cacheKey, networkResponse.clone());
+    }
+    return networkResponse;
+  } catch {
+    const cachedResponse = await cache.match(cacheKey, { ignoreSearch: true });
+    if (cachedResponse) {
+      return cachedResponse;
+    }
+    throw new Error("Network unavailable and no cached response");
+  }
+}
+
 async function cacheFirst(request) {
   const cache = await caches.open(CACHE_NAME);
   const cachedResponse = await cache.match(request, { ignoreSearch: true });
@@ -51,27 +69,6 @@ async function cacheFirst(request) {
     cache.put(request, networkResponse.clone());
   }
   return networkResponse;
-}
-
-async function navigationRequest(request) {
-  const cache = await caches.open(CACHE_NAME);
-  try {
-    const networkResponse = await fetch(request);
-    if (networkResponse.ok) {
-      cache.put("./index.html", networkResponse.clone());
-    }
-    return networkResponse;
-  } catch {
-    const cachedPage = await cache.match(request);
-    if (cachedPage) {
-      return cachedPage;
-    }
-    const appShell = await cache.match("./index.html");
-    if (appShell) {
-      return appShell;
-    }
-    return new Response("Offline", { status: 503 });
-  }
 }
 
 self.addEventListener("install", (event) => {
@@ -105,19 +102,32 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  const url = new URL(request.url);
+  const sameOrigin = url.origin === self.location.origin;
+
   if (request.mode === "navigate") {
-    event.respondWith(navigationRequest(request));
+    event.respondWith(
+      networkFirst(request, "./index.html").catch(
+        () => new Response("Offline", { status: 503 })
+      )
+    );
+    return;
+  }
+
+  if (sameOrigin) {
+    event.respondWith(
+      networkFirst(request).catch(async () => {
+        const cache = await caches.open(CACHE_NAME);
+        return cache.match(request, { ignoreSearch: true }) ?? new Response("Offline", { status: 503 });
+      })
+    );
     return;
   }
 
   event.respondWith(
     cacheFirst(request).catch(async () => {
       const cache = await caches.open(CACHE_NAME);
-      const cachedResponse = await cache.match(request, { ignoreSearch: true });
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-      return new Response("Offline", { status: 503 });
+      return cache.match(request, { ignoreSearch: true }) ?? new Response("Offline", { status: 503 });
     })
   );
 });

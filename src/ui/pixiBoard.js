@@ -1,8 +1,12 @@
 import { CELL, ITEM, PLAYER } from "../core/index.js";
 
-const PIXI_CDN_URLS = [
+const PIXI_MODULE_URLS = [
   "https://cdn.jsdelivr.net/npm/pixi.js@8.6.6/dist/pixi.mjs",
   "https://unpkg.com/pixi.js@8.6.6/dist/pixi.mjs"
+];
+const PIXI_SCRIPT_URLS = [
+  "https://cdn.jsdelivr.net/npm/pixi.js@8.6.6/dist/pixi.min.js",
+  "https://unpkg.com/pixi.js@8.6.6/dist/pixi.min.js"
 ];
 
 let Application;
@@ -113,18 +117,87 @@ function blastColor(owner) {
   return owner === PLAYER.P1 ? 0xd7776c : 0x6e99cf;
 }
 
+function assignPixiExports(pixi) {
+  if (!pixi) {
+    return false;
+  }
+  const ready =
+    typeof pixi.Application === "function" &&
+    typeof pixi.Container === "function" &&
+    typeof pixi.Graphics === "function" &&
+    typeof pixi.Text === "function" &&
+    typeof pixi.TextStyle === "function";
+  if (!ready) {
+    return false;
+  }
+  ({
+    Application,
+    Container,
+    Graphics,
+    Text,
+    TextStyle
+  } = pixi);
+  return true;
+}
+
+function resolvePixiGlobal() {
+  return assignPixiExports(globalThis.PIXI);
+}
+
+function loadScript(url) {
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector(`script[data-pixi-src="${url}"]`);
+    if (existing?.dataset.loaded === "true") {
+      resolve(true);
+      return;
+    }
+
+    const script = existing ?? document.createElement("script");
+    script.src = url;
+    script.async = true;
+    script.crossOrigin = "anonymous";
+    script.dataset.pixiSrc = url;
+
+    script.addEventListener("load", () => {
+      script.dataset.loaded = "true";
+      resolve(true);
+    });
+    script.addEventListener("error", () => {
+      reject(new Error(`PIXI script load failed: ${url}`));
+    });
+
+    if (!existing) {
+      document.head.appendChild(script);
+    }
+  });
+}
+
 async function loadPixi() {
   if (Application && Container && Graphics && Text && TextStyle) {
+    return true;
+  }
+  if (resolvePixiGlobal()) {
     return true;
   }
 
   if (!pixiLoadPromise) {
     pixiLoadPromise = (async () => {
-      for (const url of PIXI_CDN_URLS) {
+      for (const url of PIXI_MODULE_URLS) {
         try {
           const pixi = await import(url);
-          ({ Application, Container, Graphics, Text, TextStyle } = pixi);
-          return true;
+          if (assignPixiExports(pixi)) {
+            return true;
+          }
+        } catch (error) {
+          console.warn(`PIXI 読み込み失敗: ${url}`, error);
+        }
+      }
+      for (const url of PIXI_SCRIPT_URLS) {
+        try {
+          await loadScript(url);
+          if (resolvePixiGlobal()) {
+            return true;
+          }
         } catch (error) {
           console.warn(`PIXI 読み込み失敗: ${url}`, error);
         }

@@ -1170,7 +1170,9 @@ let pendingCommands = {
   [PLAYER.P2]: emptyCommand()
 };
 
-let renderer;
+let renderer = {
+  render() {}
+};
 
 function p2DisplayName() {
   return matchMode === MATCH_MODE.CPU ? "CPU(P2)" : "P2";
@@ -1513,7 +1515,15 @@ elements.confirmBtn.addEventListener("click", () => {
 async function bootstrap() {
   registerServiceWorker();
   const root = document.getElementById("pixiRoot");
-  renderer = await createPixiBoard(root, onTapCell);
+  try {
+    renderer = await createPixiBoard(root, onTapCell);
+  } catch (error) {
+    console.error("Board initialization failed", error);
+    if (root) {
+      root.innerHTML =
+        '<div style="display:grid;place-items:center;min-height:280px;padding:18px;text-align:center;color:#3d3726;font-weight:700;">盤面の初期化に失敗しました。\n再読み込みしてください。</div>';
+    }
+  }
   refresh();
 }
 
