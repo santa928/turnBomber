@@ -142,6 +142,7 @@ h1 {
 .side-pane {
   grid-auto-flow: column;
   grid-auto-columns: minmax(136px, 72%);
+  align-items: start;
   overflow-x: auto;
   overflow-y: hidden;
   padding-bottom: 2px;
@@ -151,6 +152,7 @@ h1 {
 
 .side-pane .stat-card {
   min-height: 86px;
+  align-self: start;
 }
 
 .stat-card h2 {
